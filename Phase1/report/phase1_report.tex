@@ -1,0 +1,285 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+\usepackage[margin=0.7in,columnsep=0.25in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{booktabs,tabularx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[font=small,labelfont=bf,skip=3pt]{caption}
+\usepackage[hidelinks]{hyperref}
+
+\titleformat*{\section}{\normalsize\bfseries}
+\titleformat*{\subsection}{\small\bfseries}
+\titlespacing*{\section}{0pt}{5pt plus 2pt minus 1pt}{2pt plus 1pt}
+\titlespacing*{\subsection}{0pt}{3pt plus 1pt}{1pt}
+\setlist{nosep,leftmargin=*}
+\setlength{\textfloatsep}{6pt plus 2pt minus 2pt}
+\setlength{\floatsep}{6pt plus 2pt minus 2pt}
+
+% Placeholders that must be replaced with real values before submission.
+\newcommand{\tbd}[1][TBD]{\textcolor{red}{\textbf{[#1]}}}
+\newcommand{\para}[1]{\textbf{#1}\hspace{0.4em}}
+
+\begin{document}
+
+\twocolumn[{%
+\begin{center}
+{\Large\bfseries Measurement-Driven Routing of Text and Multimodal Requests\\[1pt]
+Across Heterogeneous CPU, Laptop, and GPU Endpoints}\\[4pt]
+{\small CSE 291A Fall 2026 \textbullet{} Option 3: Adaptive Routing Across Heterogeneous Machines \textbullet{} Phase 1 Report}\\[2pt]
+{\small \tbd[Team member names]}
+\end{center}\vspace{4pt}}]
+
+\section{Problem and Research Question}
+Inference fleets are increasingly heterogeneous: cheap cloud CPUs, laptops with
+integrated accelerators, and commodity GPUs differ in compute, memory
+bandwidth, capacity, and distance from the client. These differences change
+request completion time, but they do not by themselves justify a complex
+router. We serve one model family, Qwen3.5~\cite{qwen35}, which is natively
+image--text-to-text and spans dense 0.8B/2B/4B/9B/27B and MoE 35B-A3B
+variants, on such a fleet and ask:
+
+\para{Core question.} \emph{When should a text or image request run on each
+machine, given its shape (modality, prompt and image size, output length, model
+tier), current queueing, and the cost of moving the request and its context
+over the network?}
+
+\noindent Phase~1 establishes the differences experimentally; Phase~2 derives a
+router from them. We test four hypotheses:
+\begin{itemize}
+\item[\textbf{H1}] \emph{Shape dependence.} The unloaded endpoint ranking depends
+on request shape, because prefill (compute-bound), decode
+(memory-bandwidth-bound), and vision encoding scale differently across CPU
+ISAs, core counts, and accelerators.
+\item[\textbf{H2}] \emph{Communication regimes.} Transfer cost is negligible for
+text inside one AWS Region but not for image payloads sent over the WAN to
+off-cloud endpoints.
+\item[\textbf{H3}] \emph{Contention.} Under load the fastest endpoint saturates,
+slower endpoints become useful, and speed-oblivious policies (round-robin,
+join-shortest-queue) misroute~\cite{harchol}.
+\item[\textbf{H4}] \emph{Session state.} Qwen3.5 interleaves three Gated
+DeltaNet (linear-attention, fixed-size state) layers per full-attention layer,
+so per-session state is small; this shifts when migrating a multi-turn session
+beats keeping affinity.
+\end{itemize}
+
+\section{Environment and Endpoints}
+\begin{table}[!htb]
+\centering\footnotesize
+\caption{Endpoints. A--C and the router share one AWS Region/AZ; laptops and
+the GPU host are off-cloud. Instance types pending eligibility check.}
+\label{tab:endpoints}
+\begin{tabularx}{\columnwidth}{@{}l>{\raggedright\arraybackslash}Xll@{}}
+\toprule
+ID & Hardware & Models & Isolates \\
+\midrule
+A & \texttt{c7g.xlarge}: Graviton3, 4 cores, 8\,GB & 0.8B--4B & -- \\
+B & \texttt{c7g.2xlarge}: Graviton3, 8 cores, 16\,GB & 0.8B--4B & A\,vs\,B: cores/mem \\
+C & \texttt{c7i.2xlarge}: Xeon SPR, 4C/8T, 16\,GB, AMX & 0.8B--4B & B\,vs\,C: ISA \\
+L & Team laptops (up to 5): \tbd[chip/RAM] & 0.8B--9B & edge tier \\
+G & Commercial GPU host: \tbd[GPU/VRAM] & 0.8B--35B-A3B & accel.\ tier \\
+R & \texttt{c7g.medium}: router + load generator & -- & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\para{Core and extended study.} The core study follows the option
+specification: at least two AWS CPU instance types plus the router in one AWS
+Region, communicating over private IPs (Table~\ref{tab:endpoints}). A--C are
+chosen so that each pair changes one factor. A vs.\ B varies core count and
+memory on the same ISA. B vs.\ C varies the ISA (Arm Neoverse-V1 vs.\ x86 with
+AVX-512/AMX) at equal vCPU count and memory; because an x86 vCPU is a
+hyperthread, C has half of B's physical cores. The extended study adds team
+laptops and a commercial GPU host for the larger tiers. The router reaches them
+over the WAN through a WireGuard (Tailscale) tunnel, which deliberately creates
+a second communication regime.
+
+\para{Runtime.} Every endpoint runs the same pinned llama.cpp
+release~\cite{llamacpp} (\texttt{llama-server} with an OpenAI-compatible API,
+and images through the model's \texttt{mmproj} projector). It is built natively
+per backend (Arm NEON/SVE, x86 AVX-512/AMX, Metal, CUDA) and loads identical
+GGUF files verified by SHA-256. Thinking mode stays disabled, which is
+Qwen3.5's default.
+
+\para{Confounder control.} The 0.8B and 2B \emph{anchor} models run on every
+endpoint at the same quantization (Q4\_K\_M), which gives matched-model hardware
+comparisons. Each endpoint's best practical configuration (threads, quant
+format, backend) is reported separately. Larger tiers (9B--35B-A3B) run only
+off-cloud and are used in the optional model-tier extension under an explicit
+quality objective, so gains from a smaller model are never credited to routing.
+
+\section{Workloads}
+\para{Request classes.} Text: \textbf{T1} short chat; \textbf{T2}
+prefill-heavy (2--8K-token document, short answer); \textbf{T3} decode-heavy
+(short prompt, long output); \textbf{T4} agent sessions ($k$ dependent steps
+with accumulating context and sampled tool delays). Multimodal: \textbf{M1}
+single image plus a short question at three resolutions (the visual-token count
+grows with resolution); \textbf{M2} chart or document image with a longer
+answer; \textbf{M3} multi-image prompts.
+
+\para{Sources.} Length distributions come from public chat traces
+(ShareGPT-style). Quality probes use programmatic answer checks: GSM8K and MMLU
+subsets for text, and ChartQA and TextVQA subsets for images.
+
+\para{Arrivals and splits.} Arrivals are open-loop Poisson (steady) and on/off
+bursty with the same mean rate, generated from fixed seeds into replayable
+traces. Open-loop arrivals avoid hiding queueing delay. Policies are designed
+and tuned on \emph{dev} mixes only. Evaluation uses \emph{held-out} mixes with
+different text:image ratios and length distributions.
+
+\para{Output control.} Performance runs fix output length
+(\texttt{n\_predict} with \texttt{ignore\_eos}) so that every endpoint generates
+identical token counts; quality runs terminate naturally.
+
+\section{Metrics and Instrumentation}
+\para{Request level.} The router and the load generator log one JSONL record
+per request. Arrival, routing, first-token, and completion timestamps give
+TTFT, TPOT (mean inter-token time after the first token), end-to-end latency,
+and router queueing delay. Each record also holds the server-reported
+prompt/image/output token counts, prefill and decode times, payload bytes, and
+status (ok/timeout/error). Failures are recorded, never dropped.
+
+\para{Endpoint level.} A 1\,Hz sampler records CPU utilization, memory (RSS),
+GPU utilization and memory (\texttt{nvidia-smi}; \texttt{macmon} on Apple
+Silicon), and \texttt{llama-server} slot occupancy.
+
+\para{Aggregates.} Throughput (req/s and output tok/s); p50/p95/p99 TTFT and
+TPOT; SLO attainment (goodput); utilization balance across endpoints; network
+bytes; AWS cost per 1K requests.
+
+\para{Hygiene.} Model, runtime, and AMI versions are pinned. Each experiment
+runs at least three times, and we report medians with bootstrap 95\% CIs. Cold
+start (model and projector load, first request) is reported separately from
+warm steady state. Laptops run on AC power in a fixed performance mode, with
+background load minimized and a cool-down between runs.
+
+\section{Phase 1 Experiments}
+\begin{itemize}
+\item[\textbf{E1}] \emph{Isolated profiles:} endpoint $\times$ model $\times$
+quant $\times$ prompt (128--8K) $\times$ output (32--1K) $\times$ image
+resolution $\rightarrow$ prefill rate, TPOT vs.\ context depth, vision-encode
+time, and peak memory.
+\item[\textbf{E2}] \emph{Load curves:} per endpoint, sweep slots (1--8) and
+Poisson rate up to saturation $\rightarrow$ TTFT/TPOT vs.\ load, capacity knee,
+and utilization.
+\item[\textbf{E3}] \emph{Communication:} RTT and bandwidth (intra-AZ vs.\ WAN),
+transfer time vs.\ payload (text context, image bytes), and router overhead
+(direct vs.\ routed at equal load).
+\item[\textbf{E4}] \emph{Session state:} per-turn latency with warm affinity
+vs.\ a forced endpoint switch, and whether prefix reuse works for Qwen3.5's
+hybrid layers in the pinned runtime.
+\end{itemize}
+E1--E4 yield a fitted per-endpoint service-time model and crossover maps (the
+best endpoint per request class, idle vs.\ loaded). Together they answer
+whether one endpoint dominates when unloaded and whether another becomes useful
+under contention. Table~\ref{tab:prelim} reports initial results.
+
+\begin{table}[!htb]
+\centering\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\caption{Initial measurements: Qwen3.5-2B Q4\_K\_M, warm, one request,
+512-token prompt (image: M1 mid-res.), median of \tbd[$n$] runs.}
+\label{tab:prelim}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+ & Prefill & TPOT & TTFT & TTFT & Peak & RTT \\
+ & (tok/s) & (ms) & text (ms) & image (ms) & mem (GB) & (ms) \\
+\midrule
+A & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+B & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+C & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+L & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+G & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Phase 2 Direction: Completion-Time Routing}
+We plan an estimated-completion-time (ECT) router. For request $r$ and each
+feasible endpoint $i$:
+\begin{equation}
+\begin{aligned}
+\mathrm{ECT}_i(r) ={}& W_i + E_i(v_r) + P_i(p_r) + \hat{o}_r\,\mathrm{TPOT}_i(b_i)\\
+&+ \mathrm{RTT}_i + s_r/\mathrm{BW}_i + C_i(r).
+\end{aligned}
+\end{equation}
+Here $W_i$ is the remaining work of requests outstanding at $i$, which the
+router tracks itself. $E_i$, $P_i$, and $\mathrm{TPOT}_i$ are the Phase~1
+profiles for vision encoding ($v_r$ image tokens), prefill ($p_r$ prompt
+tokens), and decode at the current batch size $b_i$. $\hat{o}_r$ is the
+predicted output length, taken as the per-class median on dev; an oracle
+variant bounds the loss from misprediction. $s_r$ is the payload size, and
+$C_i$ is the re-prefill penalty when $r$'s session state is not resident on
+$i$. The router sends $r$ to $\arg\min_i \mathrm{ECT}_i$, and a per-endpoint
+EWMA corrects predicted against observed time. A feasibility filter removes
+endpoints whose model does not fit or, in the extension, whose model tier
+misses the class's quality target.
+
+\para{Baselines.} Always-$i$ for each endpoint, round-robin,
+least-outstanding-requests, and weighted round-robin tuned on dev.
+
+\para{Evaluation.} Steady and bursty arrivals on held-out mixes, with the
+fastest endpoint both idle and busy, using the Section~4 metrics. Ablations remove the queue, network, and session terms
+and swap predicted for oracle lengths. The final set of terms follows the
+Phase~1 findings; if a simple policy suffices, we report that result.
+
+\para{Risks.} (1)~Qwen3.5's vision path in llama.cpp is not yet verified on
+every backend; unsupported cases are reported as findings and served
+text-only. (2)~Laptop and WAN variability (thermals, Wi-Fi, background load) is
+handled with fixed network setups, repeated runs, and reported variance.
+(3)~Budget: the team's $5\times\$25=\$125$ of AWS credit buys about 150
+cluster-hours of A+B+C+R at about \$0.83/h on-demand (to be confirmed): roughly
+25\,h for Phase~1, 90\,h for Phase~2, and 35\,h in reserve. We develop on
+laptops, auto-shut down instances, and set billing alarms.
+
+{\footnotesize
+\begin{thebibliography}{9}\setlength{\itemsep}{0pt}
+\bibitem{llamacpp} llama.cpp. \url{https://github.com/ggml-org/llama.cpp}
+\bibitem{qwen35} Qwen Team. Qwen3.5 model collection.
+\url{https://huggingface.co/collections/Qwen/qwen35}
+\bibitem{harchol} M.~Harchol-Balter. \emph{Performance Modeling and Design of
+Computer Systems: Queueing Theory in Action}. Cambridge Univ.\ Press, 2013.
+\end{thebibliography}}
+
+\appendix
+\section*{Appendix A: Timeline and Milestones}
+{\footnotesize\noindent Due dates: Phase~1 Nov.~4, Phase~2 Dec.~10. Stages
+overlap; Thanksgiving (Nov.~26--29) is buffer.\par}
+\vspace{3pt}
+{\footnotesize\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{1.05}
+\noindent\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.8in}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Stage & Work and milestones \\
+\midrule
+\textbf{1. Environment setup}\newline Oct 27--Nov 1 &
+Confirm instance eligibility and vCPU quota; scripted provisioning and
+teardown; pinned llama.cpp builds (Arm, x86, Metal, CUDA); checksummed GGUF and
+\texttt{mmproj} files; tunnel to off-cloud endpoints; load generator, JSONL
+logging, utilization sampler; pass-through round-robin router.
+\textbf{M1 (Nov 1):} every endpoint serves 0.8B text and image requests through
+the router. \\
+\addlinespace[2pt]
+\textbf{2. Config.\ testing \& expectation setup}\newline Nov 1--15 &
+E1--E4 sweeps over models, quantizations, lengths, image resolutions, load,
+network, and session state (cold vs.\ warm); fit service-time models; freeze
+dev/held-out traces; mark H1--H4 supported or refuted.
+\textbf{M2 (Nov 4):} Phase~1 report. \textbf{M3 (Nov 15):} full profiles and
+frozen traces. \\
+\addlinespace[2pt]
+\textbf{3. Router development}\newline Nov 12--25 &
+Baselines; ECT router with queue, network, and session terms; output-length
+predictor; quality-constrained tier selection (extension); router-overhead
+microbenchmarks. \textbf{M4 (Nov 25):} router and all baselines run end-to-end
+on dev mixes. \\
+\addlinespace[2pt]
+\textbf{4. Experiments \& analysis}\newline Nov 23--Dec 10 &
+Held-out runs (steady and bursty; fastest endpoint idle and busy); ablations;
+repeated runs with CIs; failure analysis; figures; report and artifacts.
+\textbf{M5 (Dec 5):} all runs complete. \textbf{M6 (Dec 10):} final report. \\
+\bottomrule
+\end{tabularx}\par}
+
+\end{document}
