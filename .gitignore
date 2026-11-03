@@ -1,0 +1,31 @@
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Model weights: download with scripts, never commit
+*.gguf
+*.safetensors
+models/
+
+# Secrets and credentials (AWS keys, SSH keys, tunnel configs)
+.env
+*.pem
+*.key
+.aws/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
