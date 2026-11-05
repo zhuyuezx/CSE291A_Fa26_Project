@@ -1,0 +1,124 @@
+[
+  {
+    "host": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit",
+      "machine": "arm64",
+      "chip": "Apple M4 Pro",
+      "mem_gb": 48.0,
+      "perf_cores": "10",
+      "eff_cores": "4",
+      "ollama_version": "0.40.14",
+      "python": "3.12.2",
+      "time": "2026-11-04T21:45:22-0800"
+    },
+    "models": [
+      "qwen3.5:0.8b",
+      "gemma3:1b",
+      "qwen3-vl:4b",
+      "qwen3.5:35b"
+    ],
+    "args": {
+      "models": [
+        "qwen3.5:0.8b",
+        "gemma3:1b",
+        "qwen3-vl:4b",
+        "qwen3.5:35b"
+      ],
+      "n": 100,
+      "seed": 0,
+      "max_tokens": 512,
+      "out": "/Users/zhuyuezx/Documents/UCSD/Fall_2026/CSE291A/CSE291A_Fa26_Project/Phase1/results/raw/e5_gsm8k.jsonl"
+    },
+    "model_info": [
+      {
+        "model": "qwen3.5:0.8b",
+        "family": "qwen3_5",
+        "parameter_size": "852.88M",
+        "quantization": "mxfp8",
+        "capabilities": [
+          "completion",
+          "vision",
+          "thinking",
+          "tools"
+        ],
+        "digest": "d9c89605f39abfd9e8cb4fd3c099c203d7d17e82d7765b4266a0612402d88f1c"
+      },
+      {
+        "model": "gemma3:1b",
+        "family": "gemma3",
+        "parameter_size": "999.89M",
+        "quantization": "Q4_K_M",
+        "capabilities": [
+          "completion"
+        ],
+        "digest": "8648f39daa8fbf5b18c7b4e6a8fb4990c692751d49917417b8842ca5758e7ffc"
+      },
+      {
+        "model": "qwen3-vl:4b",
+        "family": "qwen3vl",
+        "parameter_size": "4.4B",
+        "quantization": "Q4_K_M",
+        "capabilities": [
+          "completion",
+          "vision",
+          "tools",
+          "thinking"
+        ],
+        "digest": "1343d82ebee38e26a4dd6b0180b915eb91550184e67c505dea97509571c8f683"
+      },
+      {
+        "model": "qwen3.5:35b",
+        "family": "qwen35moe",
+        "parameter_size": "36.0B",
+        "quantization": "Q4_K_M",
+        "capabilities": [
+          "completion",
+          "vision",
+          "tools",
+          "thinking"
+        ],
+        "digest": "3460ffeede5453ead027dbd2f821b12ad0aa3de54630971993babdb2165221f7"
+      }
+    ]
+  },
+  {
+    "host": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit",
+      "machine": "arm64",
+      "chip": "Apple M4 Pro",
+      "mem_gb": 48.0,
+      "perf_cores": "10",
+      "eff_cores": "4",
+      "ollama_version": "0.40.14",
+      "python": "3.12.2",
+      "time": "2026-11-04T22:16:18-0800"
+    },
+    "models": [
+      "qwen3.5:2b"
+    ],
+    "args": {
+      "models": [
+        "qwen3.5:2b"
+      ],
+      "n": 100,
+      "seed": 0,
+      "max_tokens": 512,
+      "out": "/Users/zhuyuezx/Documents/UCSD/Fall_2026/CSE291A/CSE291A_Fa26_Project/Phase1/results/raw/e5_gsm8k.jsonl"
+    },
+    "model_info": [
+      {
+        "model": "qwen3.5:2b",
+        "family": "qwen3_5",
+        "parameter_size": "2.2B",
+        "quantization": "mxfp8",
+        "capabilities": [
+          "completion",
+          "vision",
+          "thinking",
+          "tools"
+        ],
+        "digest": "dfaf2605162e689c8cac330dc4a190c4c50ad30aa47814a8fe9b79fa5127e97e"
+      }
+    ]
+  }
+]

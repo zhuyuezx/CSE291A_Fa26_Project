@@ -1,0 +1,40 @@
+# Phase 1 findings (laptop endpoint)
+
+All runs are on one laptop endpoint: Apple M4 Pro, 48 GB, Ollama 0.40.14 (Metal), thinking off. Full tables are in [results.md](results.md); raw per-request logs are in [raw/](raw/).
+
+## Measurements
+
+1. **Model speed (E1).** Decode throughput is 182 tok/s for Qwen3.5-0.8B, 88 for 2B, and 62 for 35B-A3B.
+   - The MoE has 16× the 2B model's parameters but decodes at 70% of its speed, because only 3B parameters are active per token.
+   - Prefill shows a bigger gap: 4,620, 2,110 and 719 tok/s respectively.
+   - So the cost model must use *active* parameters, and prefill-heavy requests penalize the MoE most.
+2. **Cold start (E4).** Loading a model takes 0.6 s for 0.8B and 2B, but 9.1 s for 35B-A3B (21 GB resident). Swapping models in and out (dynamic placement) is only worth it when the expected gain exceeds this cost.
+3. **Images (E1).** Visual tokens grow with resolution: about 103, 294 and 1,062 tokens at 256, 512 and 1024 px.
+   - Image TTFT grows with them: 0.06 s → 0.50 s on 0.8B, and 0.39 s → 2.87 s on 35B-A3B.
+   - Every Qwen3.5 model answered the chart question correctly at every resolution.
+4. **Quality and tier labels (E5, 100 GSM8K problems).** Accuracy is 47% (0.8B), 76% (2B) and 97% (35B-A3B); gemma3:1b scores 43%.
+   - The smallest correct model is 0.8B for 47 problems and the 35B for only 11.
+5. **Content-based routing (offline, using single-request latencies on this laptop).**
+   - 0.8B ↔ 35B: a perfect router (oracle) reaches 97% accuracy at 2.54 s mean latency, versus 3.11 s for always-35B (18% faster). The R1 length rule reaches 91% at 2.85 s.
+   - The R2 TF-IDF classifier, trained on only 100 labels, barely separates easy from hard problems.
+   - 2B ↔ 35B: the oracle saves only 9% latency, because the MoE is almost as fast as the 2B here.
+6. **Load (E2, 0.8B, mixed T1/T2/T3 requests).**
+   - Ollama served one request at a time: peak concurrent decode was 1.
+   - Throughput saturates at about 1.4 req/s. p95 TTFT rises from 0.77 s at 0.5 req/s to 11.8 s at 4 req/s.
+   - Bursty arrivals (gamma, CV = 3) at the same 0.5 req/s mean give a p95 TTFT of 8.5 s, 11× the steady case.
+   - CPU utilization stays at 3–5%: the work runs on the GPU.
+
+## What this means for Phase 2
+
+- On a single device, routing to a smaller model saves little latency (9–18%). Queueing under load and bursts costs far more (TTFT ×10 or worse).
+- So the router's main lever is spreading load across devices: queue-aware placement plus model tier choice, not tier choice alone. This supports hypothesis H3.
+- Content-based tier selection needs more labeled data than 100 problems, for example from RouterBench or RouterEval.
+
+## Caveats
+
+- One laptop only; the AWS CPU endpoints are not measured yet.
+- Quantization is not matched: Ollama's default `qwen3.5:0.8b` and `:2b` tags are MXFP8, while the other models are Q4_K_M.
+- `qwen3-vl:4b` ignores `think: false` in this Ollama version, so its outputs include hidden reasoning. Its E5 numbers and image runs (no answer within 8 tokens) are not comparable and are excluded from the conclusions above.
+- Small samples: 3 repetitions per E1 point, 100 GSM8K problems, 30 requests per load point.
+- GPU utilization was not sampled (it needs `sudo powermetrics`).
+- The `qwen3.5:2b` download overlapped the first E1/E5 runs of the other models.

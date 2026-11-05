@@ -1,0 +1,7 @@
+smallest_correct_tier,problems
+qwen3.5:0.8b,47
+gemma3:1b,14
+qwen3.5:2b,24
+qwen3-vl:4b,2
+qwen3.5:35b,11
+none,2

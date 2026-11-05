@@ -1,0 +1,55 @@
+[
+  {
+    "host": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit",
+      "machine": "arm64",
+      "chip": "Apple M4 Pro",
+      "mem_gb": 48.0,
+      "perf_cores": "10",
+      "eff_cores": "4",
+      "ollama_version": "0.40.14",
+      "python": "3.12.2",
+      "time": "2026-11-04T22:09:38-0800"
+    },
+    "models": [
+      "qwen3.5:0.8b"
+    ],
+    "args": {
+      "model": "qwen3.5:0.8b",
+      "rates": [
+        0.5,
+        1.0,
+        2.0,
+        4.0
+      ],
+      "patterns": [
+        "poisson",
+        "bursty"
+      ],
+      "cv": 3.0,
+      "n": 30,
+      "mix": [
+        0.5,
+        0.25,
+        0.25
+      ],
+      "seed": 0,
+      "out": "/Users/zhuyuezx/Documents/UCSD/Fall_2026/CSE291A/CSE291A_Fa26_Project/Phase1/results/raw/e2_load.jsonl"
+    },
+    "model_info": [
+      {
+        "model": "qwen3.5:0.8b",
+        "family": "qwen3_5",
+        "parameter_size": "852.88M",
+        "quantization": "mxfp8",
+        "capabilities": [
+          "completion",
+          "vision",
+          "thinking",
+          "tools"
+        ],
+        "digest": "d9c89605f39abfd9e8cb4fd3c099c203d7d17e82d7765b4266a0612402d88f1c"
+      }
+    ]
+  }
+]
