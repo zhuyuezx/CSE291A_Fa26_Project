@@ -1,0 +1,7 @@
+{
+  "name": "Apple M4 Pro (14-core CPU, 20-core GPU), 48 GB unified memory",
+  "mem_bandwidth_GBps": 273,
+  "peak_tflops": 9.0,
+  "ssd_read_GBps": 6.0,
+  "notes": "Memory bandwidth is Apple's published spec. GPU peak FLOP/s and SSD read speed are public estimates (Apple does not publish them); the calibration step in compare_theory.py absorbs their error."
+}

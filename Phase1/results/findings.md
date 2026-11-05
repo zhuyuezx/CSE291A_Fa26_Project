@@ -24,6 +24,14 @@ All runs are on one laptop endpoint: Apple M4 Pro, 48 GB, Ollama 0.40.14 (Metal)
    - Bursty arrivals (gamma, CV = 3) at the same 0.5 req/s mean give a p95 TTFT of 8.5 s, 11× the steady case.
    - CPU utilization stays at 3–5%: the work runs on the GPU.
 
+7. **Can a model's config predict its cost? ([theory.md](theory.md)).** The roofline estimates in `harness/theory.py` use only `configs/models.json` and `configs/hardware.json`. They are checked by leaving one model out: calibrate on the other four, then predict the fifth from its config, as if it were a new model added at cold start.
+   - **Memory:** config alone is enough. Pure theory is within 6% (median); after calibration the held-out error is 4%, at most 14%.
+   - **Prefill:** pure theory is 67% off, because Apple's GPU peak FLOP/s is not published and the estimate used is optimistic. But efficiency is stable at 0.53–0.67 across models, so one calibration factor per device brings the held-out error down to 12% (max 40%).
+   - **Decode:** efficiency varies more (0.53–0.89), giving a held-out error of 22% (max 57%). It is lowest for the tiny gemma3:1b, where fixed per-token overhead dominates, and for the MoE (0.61). Adding a per-token overhead term reduces the worst case to 43% but not the median (24%).
+   - **Load time:** not predictable from file size alone (held-out error 30%, max 154%). It depends on whether the file is already in the OS page cache: the just-downloaded 2B loaded 3.1 GB in 0.6 s, while the 35B took 9.1 s for 23.9 GB.
+   - **Takeaway for the router:** a new model can be admitted from its config plus one device calibration, with memory accurate and prefill/decode within roughly 10–25%. The router should then refine the estimate online from the first few real requests (the EWMA in the design), and should measure load time rather than predict it.
+   - **Example:** the never-run 27B dense model (`qwen3.8`) is predicted at about 12 tok/s decode, 111 tok/s prefill and 16.7 GB resident.
+
 ## What this means for Phase 2
 
 - On a single device, routing to a smaller model saves little latency (9–18%). Queueing under load and bursts costs far more (TTFT ×10 or worse).

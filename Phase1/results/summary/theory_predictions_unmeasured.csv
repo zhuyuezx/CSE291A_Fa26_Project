@@ -1,0 +1,2 @@
+model,prompt_tokens,output_tokens,pred_prefill_tps,pred_decode_tps,pred_memory_gb,pred_load_s
+qwen3.8:latest,512,256,110.6299750125001,12.47224128186564,16.65228293414041,8.668179193161794

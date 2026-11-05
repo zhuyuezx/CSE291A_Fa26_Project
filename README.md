@@ -23,6 +23,7 @@ reference/                 # related work and usable benchmarks
 Phase1/
   req.txt                  # course requirements
   report/                  # Phase 1 report (.tex and .pdf)
+  configs/                 # model architecture configs and device specs for cost estimation
   harness/                 # measurement code (see below)
   data/                    # GSM8K sample and generated chart images
   results/
@@ -50,6 +51,8 @@ Phase1/run_all.sh
 | `run_quality.py` | E5 GSM8K accuracy per model, giving each problem's smallest correct model |
 | `route_sim.py` | Offline evaluation of routing policies on the E5 data |
 | `analyze.py` | Writes `results/summary/`, `results/figures/`, and `results/results.md` |
+| `theory.py` | Config-only roofline estimates of prefill, decode, memory, and load time |
+| `compare_theory.py` | Compares those estimates with the measurements; writes `results/theory.md` |
 
 ## Building the report
 

@@ -31,3 +31,6 @@ for small in $(installed qwen3.5:0.8b gemma3:1b qwen3.5:2b qwen3-vl:4b); do
 done
 
 python3 analyze.py
+
+# Config-only (roofline) estimates vs. the E1/E4 measurements.
+python3 compare_theory.py
