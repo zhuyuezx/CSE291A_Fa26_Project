@@ -1,0 +1,11 @@
+\begin{tabular}{@{}lllrrrrr@{}}
+\toprule
+Model & Params & Quant. & Prefill (tok/s) & Decode (tok/s) & TPOT (ms) & Cold load (s) & Resident (GB) \\
+\midrule
+\texttt{qwen3.5:0.8b} & 0.85B & MXFP8 & 4,621 & 182 & 5.5 & 0.61 & 1.2 \\
+\texttt{gemma3:1b} & 1.0B & Q4\_K\_M & 3,674 & 176 & 5.7 & 0.55 & 0.9 \\
+\texttt{qwen3.5:2b} & 2.2B & MXFP8 & 2,110 & 88 & 11.3 & 0.61 & 2.9 \\
+\texttt{qwen3-vl:4b}$^\dagger$ & 4.4B & Q4\_K\_M & 751 & 77 & 13.1 & 1.66 & 4.2 \\
+\texttt{qwen3.5:35b} & 36B & Q4\_K\_M & 719 & 62 & 16.1 & 9.12 & 21.2 \\
+\bottomrule
+\end{tabular}

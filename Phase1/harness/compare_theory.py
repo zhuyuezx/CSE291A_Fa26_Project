@@ -21,6 +21,10 @@ import matplotlib.pyplot as plt  # noqa: E402
 from common import FIG_DIR, PHASE1, RAW_DIR, SUMMARY_DIR, read_jsonl  # noqa: E402
 from theory import estimate, load_configs  # noqa: E402
 
+plt.rcParams.update({"font.size": 12, "legend.fontsize": 10})
+TITLES = {"prefill_tps": "Prefill throughput (tok/s)", "decode_tps": "Decode throughput (tok/s)",
+          "memory_gb": "Resident memory (GB)", "load_s": "Cold-start load time (s)"}
+
 # metric: (measured column, theoretical column, higher is better)
 METRICS = {
     "prefill_tps": ("prefill_tps", True),
@@ -128,7 +132,7 @@ def main():
                          for m in METRICS}})
     pd.DataFrame(preds).to_csv(SUMMARY_DIR / "theory_predictions_unmeasured.csv", index=False)
 
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+    fig, axes = plt.subplots(1, 4, figsize=(13, 3.5))
     for ax, metric in zip(axes, METRICS):
         for col, marker, label in ((f"theory_{metric}", "x", "theory only"),
                                    (f"loo_{metric}", "o", "calibrated (leave-one-out)")):
@@ -136,9 +140,11 @@ def main():
         lo = min(pts[metric].min(), pts[[f"theory_{metric}", f"loo_{metric}"]].min().min())
         hi = max(pts[metric].max(), pts[[f"theory_{metric}", f"loo_{metric}"]].max().max())
         ax.plot([lo, hi], [lo, hi], "k--", lw=1)
-        ax.set(xscale="log", yscale="log", xlabel=f"measured {metric}",
-               ylabel=f"predicted {metric}", title=metric)
-    axes[0].legend(fontsize=8)
+        ax.set(xscale="log", yscale="log", xlabel="measured", ylabel="predicted",
+               title=TITLES[metric])
+        for axis in (ax.xaxis, ax.yaxis):  # minor labels (2x10^2, 3x10^2) collide
+            axis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+    axes[0].legend()
     fig.tight_layout()
     fig.savefig(FIG_DIR / "theory_vs_measured.png", dpi=150)
     plt.close(fig)

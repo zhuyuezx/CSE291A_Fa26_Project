@@ -34,3 +34,6 @@ python3 analyze.py
 
 # Config-only (roofline) estimates vs. the E1/E4 measurements.
 python3 compare_theory.py
+
+# LaTeX tables for the report's Appendix B.
+python3 report_tables.py

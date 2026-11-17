@@ -1,0 +1,15 @@
+\begin{tabular}{@{}llrrrrr@{}}
+\toprule
+Model & Params & Accuracy & Output & \multicolumn{2}{c}{Latency (s)} & Smallest \\
+\cmidrule(lr){5-6}
+& & (\%) & tokens & mean & p95 & correct for \\
+\midrule
+\texttt{qwen3.5:0.8b} & 0.85B & 47 & 266 & 1.53 & 2.85 & 47 \\
+\texttt{gemma3:1b} & 1.0B & 43 & 183 & 1.15 & 3.04 & 14 \\
+\texttt{qwen3.5:2b} & 2.2B & 76 & 243 & 2.83 & 5.87 & 24 \\
+\texttt{qwen3-vl:4b}$^\dagger$ & 4.4B & 44 & 461 & 8.75 & 10.41 & 2 \\
+\texttt{qwen3.5:35b} & 36B & 97 & 160 & 3.11 & 5.69 & 11 \\
+\midrule
+\multicolumn{6}{@{}l}{No model correct} & 2 \\
+\bottomrule
+\end{tabular}

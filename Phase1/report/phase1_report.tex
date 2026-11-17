@@ -10,6 +10,9 @@
 \usepackage{titlesec}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta}
+\usepackage{graphicx}
+\usepackage{float}
+\graphicspath{{../results/figures/}}
 \usepackage[font=small,labelfont=bf,skip=3pt]{caption}
 \usepackage[hidelinks]{hyperref}
 
@@ -64,6 +67,13 @@ speed-oblivious policies misroute~\cite{harchol}.
 \item[\textbf{H4}] \emph{Communication.} Transfer is negligible for text inside
 AWS but not for images sent over the WAN to laptops.
 \end{itemize}
+
+\para{Related work.} Query routers (RouteLLM~\cite{routellm}, Hybrid
+LLM~\cite{hybridllm}, FrugalGPT~\cite{frugalgpt}, RouterBench~\cite{routerbench})
+pick a model from the prompt but treat each model as a fixed-cost API. Serving
+systems (Helix~\cite{helix}, Llumnix~\cite{llumnix}, Preble~\cite{preble})
+place and schedule requests across hardware but never change the model. We
+make both decisions together, on CPU and laptop endpoints and for images.
 
 \section{Environment and Endpoints}
 \begin{table}[!htb]
@@ -148,8 +158,15 @@ model), and co-location interference.
 \item[\textbf{E5}] \emph{Tier labels:} each dev prompt on each tier
 $\rightarrow$ the smallest passing tier and the output length.
 \end{itemize}
-E1--E4 calibrate the cost model and the crossover maps (the best device per
-class, idle vs.\ loaded); E5 trains the tier selector.
+E1--E4 calibrate the cost model and the crossover maps; E5 trains the tier
+selector.
+
+\para{Preliminary results (Appendix~B).} On one MacBook (M4 Pro), the
+35B-A3B MoE decodes at 62\,tok/s, near the dense 2B's 88, but needs 21\,GB and
+a 9.1\,s cold start; image TTFT grows 7--11$\times$ from 256 to 1024\,px. On
+100 GSM8K problems, 0.8B/2B/35B-A3B score 47/76/97\%, and 47 problems need
+only the 0.8B; an oracle router keeps 97\% accuracy at 18\% lower latency, and
+a length rule reaches 91\%.
 
 \section{Phase 2: Router Architecture}
 \begin{figure}[!t]
@@ -260,46 +277,20 @@ auto-shut down instances, and set billing alarms.
 {\footnotesize
 \begin{thebibliography}{9}\setlength{\itemsep}{0pt}
 \bibitem{llamacpp} llama.cpp. \url{https://github.com/ggml-org/llama.cpp}
-\bibitem{qwen35} Qwen Team. Qwen3.5 model collection.
-\url{https://huggingface.co/collections/Qwen/qwen35}
+\bibitem{qwen35} Qwen Team. Qwen3.5. \url{https://huggingface.co/collections/Qwen/qwen35}
 \bibitem{harchol} M.~Harchol-Balter. \emph{Performance Modeling and Design of
-Computer Systems}. Cambridge Univ.\ Press, 2013.
-\bibitem{routellm} I.~Ong et al. RouteLLM: Learning to route LLMs with
-preference data. arXiv:2406.18665, 2024.
-\bibitem{frugalgpt} L.~Chen, M.~Zaharia, J.~Zou. FrugalGPT. arXiv:2305.05176,
-2023.
+Computer Systems}. 2013.
+\bibitem{routellm} I.~Ong et al. RouteLLM. arXiv:2406.18665, 2024.
+\bibitem{frugalgpt} L.~Chen, M.~Zaharia, J.~Zou. FrugalGPT. arXiv:2305.05176, 2023.
+\bibitem{hybridllm} D.~Ding et al. Hybrid LLM. ICLR, 2024.
+\bibitem{routerbench} Q.~J.~Hu et al. RouterBench. arXiv:2403.12031, 2024.
+\bibitem{helix} Y.~Mei et al. Helix. ASPLOS, 2025.
+\bibitem{llumnix} B.~Sun et al. Llumnix. OSDI, 2024.
+\bibitem{preble} V.~Srivatsa et al. Preble. ICLR, 2025.
 \end{thebibliography}}
 
+% Appendices A and B: single-column, starting on a new page.
 \appendix
-\section*{Appendix A: Timeline and Milestones}
-{\footnotesize\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{1.05}
-\noindent\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.8in}>{\raggedright\arraybackslash}X@{}}
-\toprule
-Stage & Work and milestones (Thanksgiving, Nov 26--29, is buffer) \\
-\midrule
-\textbf{1. Environment setup}\newline Nov 3--8 &
-Confirm eligibility and quota; provisioning scripts; pinned llama.cpp builds;
-GGUF/\texttt{mmproj} on every device; WAN tunnel; model agent; load generator
-and logging; pass-through router.
-\textbf{M0 (Nov 4):} Phase~1 report. \textbf{M1 (Nov 8):} every device serves
-0.8B text and image requests through the router. \\
-\addlinespace[2pt]
-\textbf{2. Config.\ testing \& expectation setup}\newline Nov 6--18 &
-E1--E5 sweeps (models, quantizations, lengths, image resolutions, load,
-network, model lifecycle); fit roofline efficiencies; collect tier labels;
-freeze dev/held-out traces. \textbf{M2 (Nov 18):} calibrated cost model,
-labeled dev set. \\
-\addlinespace[2pt]
-\textbf{3. Router development}\newline Nov 16--28 &
-Baselines; ECT placement; R1--R2, then R3--R4; central-queue scheduler;
-placement manager (stretch); decision-latency microbenchmarks.
-\textbf{M3 (Nov 25):} router and baselines run end-to-end on dev mixes. \\
-\addlinespace[2pt]
-\textbf{4. Experiments \& analysis}\newline Nov 25--Dec 10 &
-Held-out runs across $\rho$ (steady and bursty; fastest device idle and busy);
-ablations; repeated runs with CIs; failure analysis; report and artifacts.
-\textbf{M4 (Dec 5):} all runs complete. \textbf{M5 (Dec 10):} final report. \\
-\bottomrule
-\end{tabularx}\par}
+\input{appendix}
 
 \end{document}

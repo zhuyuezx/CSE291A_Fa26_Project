@@ -1,0 +1,17 @@
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{0.8B $\rightarrow$ 35B-A3B} & \multicolumn{3}{c}{2B $\rightarrow$ 35B-A3B} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+Policy & Acc.\ (\%) & Latency (s) & To 35B (\%) & Acc.\ (\%) & Latency (s) & To 35B (\%) \\
+\midrule
+Always the small model & 47 & 1.53 & 0 & 76 & 2.83 & 0 \\
+Always 35B-A3B & 97 & 3.11 & 100 & 97 & 3.11 & 100 \\
+Random (50/50) & 69 & 2.27 & 47 & 84 & 2.98 & 47 \\
+R1 length rule: 35B-A3B if $>$31 words & 91 & 2.85 & 73 & 94 & 3.07 & 73 \\
+R1 length rule: 35B-A3B if $>$39 words & 78 & 2.44 & 49 & 92 & 2.92 & 49 \\
+R1 length rule: 35B-A3B if $>$49 words & 64 & 2.09 & 24 & 82 & 2.99 & 24 \\
+R2 TF-IDF + logistic regression, $\tau=0.5$ & 89 & 2.88 & 85 & 76 & 2.83 & 0 \\
+R2 TF-IDF + logistic regression, $\tau=0.7$ & 97 & 3.11 & 100 & 76 & 2.84 & 1 \\
+Oracle (small when it is correct) & 97 & 2.54 & 53 & 98 & 2.84 & 24 \\
+\bottomrule
+\end{tabular}

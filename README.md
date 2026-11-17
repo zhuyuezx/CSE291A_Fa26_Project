@@ -53,6 +53,7 @@ Phase1/run_all.sh
 | `analyze.py` | Writes `results/summary/`, `results/figures/`, and `results/results.md` |
 | `theory.py` | Config-only roofline estimates of prefill, decode, memory, and load time |
 | `compare_theory.py` | Compares those estimates with the measurements; writes `results/theory.md` |
+| `report_tables.py` | Writes the report's Appendix B tables (`report/tables/`) from `results/summary/` |
 
 ## Building the report
 

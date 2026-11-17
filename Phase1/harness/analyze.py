@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from common import FIG_DIR, PHASE1, RAW_DIR, SUMMARY_DIR, read_jsonl  # noqa: E402
 
+# Sized so that text stays about 7 pt when figures are scaled into the report.
+plt.rcParams.update({"font.size": 12, "legend.fontsize": 10})
+
 
 def load(name):
     df = pd.DataFrame(read_jsonl(RAW_DIR / f"{name}.jsonl"))
@@ -82,7 +85,7 @@ def e1(sections):
         ).reset_index()
         img_tab.to_csv(SUMMARY_DIR / "e1_image_profile.csv", index=False)
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(12, 3.6))
     order = per_model.model.tolist()
     for m in order:
         g = prof[prof.model == m].groupby("target_prompt_tokens").agg(
@@ -96,19 +99,22 @@ def e1(sections):
                 title="Prefill throughput")
     axes[2].bar(per_model.model, per_model.decode_tps, color="#4C72B0")
     axes[2].set(ylabel="decode tokens/s", title="Decode throughput (median)")
-    axes[2].tick_params(axis="x", rotation=30)
-    axes[0].legend(fontsize=8)
-    fig.tight_layout()
+    plt.setp(axes[2].get_xticklabels(), rotation=30, ha="right")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=len(labels), frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
     fig.savefig(FIG_DIR / "e1_profiles.png", dpi=150)
     plt.close(fig)
 
     if not img_tab.empty:
         fig, ax = plt.subplots(figsize=(5, 3.5))
         for m, g in img_tab.groupby("model"):
+            if g.ttft_s.isna().all():  # no visible output (qwen3-vl:4b keeps thinking)
+                continue
             ax.plot(g.image_px, g.ttft_s, marker="o", label=m)
         ax.set(xlabel="image side (px)", ylabel="median TTFT (s)",
-               title="Image request TTFT vs resolution")
-        ax.legend(fontsize=8)
+               title="Image TTFT vs resolution")
+        ax.legend()
         fig.tight_layout()
         fig.savefig(FIG_DIR / "e1_image_ttft.png", dpi=150)
         plt.close(fig)
@@ -151,10 +157,11 @@ def e5(sections):
     fig, ax = plt.subplots(figsize=(5.5, 3.8))
     ax.scatter(acc.mean_e2e_s, acc.accuracy)
     for _, r in acc.iterrows():
-        ax.annotate(r.model, (r.mean_e2e_s, r.accuracy), fontsize=8,
+        ax.annotate(r.model, (r.mean_e2e_s, r.accuracy), fontsize=10,
                     xytext=(4, 4), textcoords="offset points")
     ax.set(xlabel="mean end-to-end latency (s)", ylabel="GSM8K accuracy",
            title="Quality vs latency per model tier")
+    ax.margins(x=0.15, y=0.12)  # keep point labels inside the axes
     fig.tight_layout()
     fig.savefig(FIG_DIR / "e5_quality_latency.png", dpi=150)
     plt.close(fig)
@@ -173,15 +180,19 @@ def route(sections):
         pair = tab.pair.iloc[0]
         curve = pd.read_csv(f.with_name(f.name.replace("route_sim_", "route_sim_curve_")))
         fig, ax = plt.subplots(figsize=(5.5, 3.8))
-        for prefix, style in (("R1", "-"), ("R2", "--")):
-            c = curve[curve.policy.str.startswith(prefix)].sort_values("mean_latency_s")
-            ax.plot(c.mean_latency_s, c.accuracy, style, label=f"{prefix} sweep")
+        # Sweeps as markers: when the two models' latencies are close, a line
+        # through them sorted by latency zigzags.
+        for prefix, marker in (("R1", "o"), ("R2", "s")):
+            c = curve[curve.policy.str.startswith(prefix)]
+            ax.scatter(c.mean_latency_s, c.accuracy, s=14, marker=marker, alpha=0.5,
+                       label=f"{prefix} sweep")
         for _, r in tab[tab.policy.isin(["always-small", "always-large", "random", "oracle"])].iterrows():
             ax.scatter(r.mean_latency_s, r.accuracy)
-            ax.annotate(r.policy, (r.mean_latency_s, r.accuracy), fontsize=8,
+            ax.annotate(r.policy, (r.mean_latency_s, r.accuracy), fontsize=10,
                         xytext=(4, -10), textcoords="offset points")
         ax.set(xlabel="mean end-to-end latency (s)", ylabel="accuracy", title=f"Routing: {pair}")
-        ax.legend(fontsize=8)
+        ax.margins(x=0.12, y=0.12)  # keep point labels inside the axes
+        ax.legend()
         fig.tight_layout()
         png = f"route_sim_{f.stem.replace('route_sim_', '')}.png"
         fig.savefig(FIG_DIR / png, dpi=150)
@@ -220,14 +231,14 @@ def e2(sections):
     tab = pd.DataFrame(rows)
     tab.to_csv(SUMMARY_DIR / "e2_load.csv", index=False)
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 3.8))
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.4))
     for (model, pattern), g in tab.groupby(["model", "pattern"]):
         axes[0].plot(g.offered_rps, g.p95_ttft_s, marker="o", label=f"{model} {pattern}")
         axes[1].plot(g.offered_rps, g.achieved_rps, marker="o", label=f"{model} {pattern}")
     axes[0].set(xlabel="offered load (req/s)", ylabel="p95 TTFT (s)", yscale="log",
                 title="Tail TTFT vs offered load")
     axes[1].set(xlabel="offered load (req/s)", ylabel="achieved req/s", title="Throughput")
-    axes[0].legend(fontsize=8)
+    axes[0].legend()
     fig.tight_layout()
     fig.savefig(FIG_DIR / "e2_load.png", dpi=150)
     plt.close(fig)
