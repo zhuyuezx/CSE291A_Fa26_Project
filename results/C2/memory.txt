@@ -1,0 +1,5 @@
+VmHWM:	 4030612 kB
+VmRSS:	 4030612 kB
+               total        used        free      shared  buff/cache   available
+Mem:            7774        3214        2755           2        2052        4560
+Swap:              0           0           0
