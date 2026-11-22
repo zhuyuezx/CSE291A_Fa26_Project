@@ -96,6 +96,24 @@ On the instance, install `build-essential` and the kernel headers, blacklist `no
 
 Set G1 up last. If the driver takes more than an hour, continue with C1, C2, and G2: that still meets the option's requirement of two CPU instance types.
 
+## Router and team access
+
+The router R (`m7g.large`, Ubuntu 24.04 Arm, us-west-2d) has the fixed Elastic IP **32.191.208.76**. It was set up with `setup_router.sh`: tools, a Python venv at `/opt/fleet/venv`, the endpoint list at `/opt/fleet/endpoints.json` (a copy of [endpoints.json](endpoints.json)), and the `fleet-run` lock.
+
+**Connecting.** Put the team key at `~/.ssh/cse291_router_key.pem` and add `Include <repo>/Phase2/deploy/ssh_config` at the top of `~/.ssh/config`. Then `ssh cse-router`, `ssh cse-c1`, …, `ssh cse-g2` work, and VS Code Remote-SSH lists the same names. Endpoints are reached through the router by private IP, so the names survive stop/start. SSH is allowed from the campus range `128.54.0.0/16`; from home, add your own IP as another SSH rule with your name in the description.
+
+**One experiment at a time.** The endpoints are shared, and a second concurrent load would corrupt both runs' numbers. Start every measurement on the router through the lock:
+
+```bash
+fleet-run status                                   # who holds the fleet; health and busy slots per endpoint
+fleet-run <your-name> python3 my_experiment.py     # refused if someone else is running
+fleet-run --wait <your-name> python3 my_experiment.py   # queue instead
+```
+
+Router experiments reach the endpoints over HTTP (port 8080) only, so the router needs no SSH key for them. Single-node tests (`run_node_tests.sh`) run on the endpoint itself over SSH from a laptop. Hold the fleet while they run, e.g. `fleet-run <your-name> sleep 1800` in a `tmux` session on the router.
+
+Develop on your laptop and share code and results through git. A busy router also distorts the client-side latency it measures.
+
 ## Cost hygiene
 
 - **Stop** (not terminate) every node at the end of a session. The disk keeps the build and models, at about $0.08 per GB-month.

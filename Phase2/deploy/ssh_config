@@ -1,0 +1,34 @@
+# SSH shortcuts for the Phase 2 fleet.
+#
+# 1. Put the team key at ~/.ssh/cse291_router_key.pem (never in the repo).
+# 2. Add this line at the top of ~/.ssh/config (create the file if needed):
+#        Include <path to this repo>/Phase2/deploy/ssh_config
+#    or paste this file's contents into ~/.ssh/config.
+# 3. Connect with `ssh cse-router`, `ssh cse-c1`, ..., `ssh cse-g2`.
+#    VS Code Remote-SSH lists the same names.
+#
+# The router has a fixed Elastic IP. The endpoints are reached through the
+# router by their private IPs, which never change across stop/start, so these
+# names keep working after a restart.
+
+Host cse-router
+    HostName 32.191.208.76
+
+Host cse-c1
+    HostName 172.31.61.18
+Host cse-c2
+    HostName 172.31.41.144
+Host cse-g1
+    HostName 172.31.56.6
+Host cse-g2
+    HostName 172.31.11.54
+
+Host cse-c1 cse-c2 cse-g1 cse-g2
+    ProxyJump cse-router
+
+Host cse-*
+    User ubuntu
+    IdentityFile ~/.ssh/cse291_router_key.pem
+    IdentitiesOnly yes
+    ServerAliveInterval 30
+    StrictHostKeyChecking accept-new

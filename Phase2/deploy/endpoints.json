@@ -1,0 +1,9 @@
+{
+  "router": {"instance_type": "m7g.large", "az": "us-west-2d", "private_ip": "172.31.60.152", "elastic_ip": "32.191.208.76"},
+  "endpoints": [
+    {"name": "C1", "kind": "cpu", "instance_type": "c7g.xlarge",  "az": "us-west-2d", "private_ip": "172.31.61.18",  "port": 8080},
+    {"name": "C2", "kind": "cpu", "instance_type": "c7i.xlarge",  "az": "us-west-2b", "private_ip": "172.31.41.144", "port": 8080},
+    {"name": "G1", "kind": "gpu", "instance_type": "g6f.large",   "az": "us-west-2d", "private_ip": "172.31.56.6",   "port": 8080},
+    {"name": "G2", "kind": "gpu", "instance_type": "g4dn.xlarge", "az": "us-west-2c", "private_ip": "172.31.11.54",  "port": 8080}
+  ]
+}

@@ -2,6 +2,7 @@
 
 Option 3. We route text and image requests for [Qwen3.5](https://huggingface.co/collections/Qwen/qwen35) models across AWS CPU instances and Apple-Silicon laptops, served with [llama.cpp](https://github.com/ggml-org/llama.cpp).
 
+- **Phase 2 status, AWS fleet, and how to connect:** [`Phase2/README.md`](Phase2/README.md)
 - **Phase 1 report:** [`Phase1/report/phase1_report.pdf`](Phase1/report/phase1_report.pdf)
 - **Phase 1 results:** [`Phase1/results/findings.md`](Phase1/results/findings.md) (key findings), [`Phase1/results/results.md`](Phase1/results/results.md) (all tables and figures)
 - **Related work and benchmarks:** [`reference/README.md`](reference/README.md)
