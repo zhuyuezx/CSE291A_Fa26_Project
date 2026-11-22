@@ -1,0 +1,44 @@
+{
+  "dev-balanced": {
+    "chat": 0.25,
+    "multiturn": 0.05,
+    "math": 0.12,
+    "rag_short": 0.06,
+    "rag_multihop": 0.08,
+    "rag_long": 0.06,
+    "summ": 0.08,
+    "code": 0.1,
+    "instruct": 0.1,
+    "knowledge": 0.05,
+    "tool": 0.05
+  },
+  "real-chat": {
+    "chat": 0.55,
+    "multiturn": 0.15,
+    "code": 0.1,
+    "instruct": 0.1,
+    "math": 0.05,
+    "summ": 0.05
+  },
+  "rag-enterprise": {
+    "rag_short": 0.15,
+    "rag_multihop": 0.2,
+    "rag_long": 0.2,
+    "summ": 0.2,
+    "chat": 0.15,
+    "tool": 0.1
+  },
+  "reasoning": {
+    "math": 0.35,
+    "code": 0.3,
+    "instruct": 0.15,
+    "knowledge": 0.1,
+    "chat": 0.1
+  },
+  "agent-tools": {
+    "tool": 0.45,
+    "rag_multihop": 0.2,
+    "rag_short": 0.15,
+    "chat": 0.2
+  }
+}
