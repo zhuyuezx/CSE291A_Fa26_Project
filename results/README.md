@@ -1,28 +1,50 @@
 # Phase 2 endpoint measurements
 
-Each node was tested on itself with `Phase2/harness/run_node_tests.sh`, sending requests to `localhost`, so network cost is excluded. Every node serves the same file, **Qwen3.5-2B Q4_K_M** (SHA-256 `aaf42c8b…`), with llama.cpp `b12617`, thinking off, 4 server slots, and a 16K shared context. Full reports and raw logs are in each node's folder: [C1](C1/report.md), [C2](C2/report.md), [G2](G2/report.md). G1 will be added once its tests run.
+Each node was tested on itself with `Phase2/harness/run_node_tests.sh`, sending requests to `localhost`, so network cost is excluded. Every node serves the same file, **Qwen3.5-2B Q4_K_M** (SHA-256 `aaf42c8b…`), with llama.cpp `b12617`, thinking off, 4 server slots, and a 16K shared context. Full reports and raw logs are in each node's folder: [C1](C1/report.md), [C2](C2/report.md), [G1](G1/report.md), [G2](G2/report.md).
 
 **Scope note: text only.** Image requests are out of scope for now, and endpoints are being moved to text-only serving. The image rows below come from the first test runs, when the vision projector was loaded. G1 (1/8 L4, 3 GB) cannot serve images at all: the 2B model (1.27 GB) plus the F16 vision projector (0.67 GB) plus CUDA overhead leave less than the 223 MiB the vision encoder needs, so it runs out of memory at any context size we tried.
 
 ## All nodes at a glance
 
-| | C1 `c7g.xlarge` | C2 `c7i.xlarge` | G2 `g4dn.xlarge` |
-|---|---|---|---|
-| Hardware | Graviton3, 4 cores | Sapphire Rapids, 2 cores × 2 threads, AMX | NVIDIA T4, 16 GB |
-| Price | $0.145/h | $0.179/h | $0.526/h |
-| Prefill, 512-token prompt (llama-bench) | 95 tok/s | 155 tok/s | **4,430 tok/s** |
-| Decode (llama-bench) | 22.5 tok/s | 10.3 tok/s | **124.6 tok/s** |
-| Short chat, 204 → 32 tokens, end-to-end | 3.5 s | 4.5 s | **0.35 s** |
-| Long output, 203 → 256 tokens | 13.9 s | 26.1 s | **2.26 s** |
-| Long prompt, 2168 → 256 tokens | 44.1 s | 39.6 s | **2.75 s** |
-| 1024 px image, time to first token | 211 s | 30.8 s | **0.66 s** |
-| Throughput at 4 concurrent requests | 14.8 output tok/s | 13.6 | **194** |
-| Batching gain, 1 → 4 concurrent | 1.4× | 1.7× | 1.9× |
-| Output tokens per dollar, 4 concurrent | 0.37 M | 0.27 M | **1.33 M** |
-| Cold start: model on disk / in page cache | 14.9 s / 1.2 s | 14.9 s / 1.5 s | 18.0 s / 1.9 s |
-| Failures | 0 of 57 | 0 of 57 | 0 of 57 |
+| | C1 `c7g.xlarge` | C2 `c7i.xlarge` | G1 `g6f.large` | G2 `g4dn.xlarge` |
+|---|---|---|---|---|
+| Hardware | Graviton3, 4 cores | Sapphire Rapids, 2 cores × 2 threads, AMX | 1/8 NVIDIA L4 (3 GB), 2 vCPU | NVIDIA T4, 16 GB |
+| Price | $0.145/h | $0.179/h | ~$0.20/h | $0.526/h |
+| Prefill, 512-token prompt (llama-bench) | 95 tok/s | 155 tok/s | 1,280 tok/s | **4,430 tok/s** |
+| Decode (llama-bench) | 22.5 tok/s | 10.3 tok/s | 16.6 tok/s | **124.6 tok/s** |
+| Short chat, 204 → 32 tokens, end-to-end | 3.5 s | 4.5 s | 2.4 s | **0.35 s** |
+| Long output, 203 → 256 tokens | 13.9 s | 26.1 s | 17.3 s | **2.26 s** |
+| Long prompt, 2168 → 32 tokens | 32.6 s | 16.8 s | 3.9 s | **0.80 s** |
+| Long prompt, 2168 → 256 tokens | 44.1 s | 39.6 s | 18.9 s | **2.75 s** |
+| 1024 px image, time to first token | 211 s | 30.8 s | cannot load vision | **0.66 s** |
+| Throughput at 4 concurrent requests | 14.8 output tok/s | 13.6 | 39.1 | **194** |
+| Batching gain, 1 → 4 concurrent | 1.4× | 1.7× | **2.8×** | 1.9× |
+| Output tokens per dollar, 4 concurrent | 0.37 M | 0.27 M | 0.70 M | **1.33 M** |
+| Cold start: model on disk / in page cache | 14.9 s / 1.2 s | 14.9 s / 1.5 s | 13.5 s / 2.0 s * | 18.0 s / 1.9 s |
+| Failures | 0 of 57 | 0 of 57 | 0 of 48 | 0 of 57 |
+
+\* G1 loaded the text model only (1.28 GB); the other cold starts include the 0.67 GB vision projector.
+
+**G1 is a third kind of device.** Its GPU slice reads prompts 8–13× faster than the CPU nodes, but generates at CPU speed (16.6 tok/s), because 1/8 of an L4 gets roughly 1/8 of its memory bandwidth. So G1 beats every CPU node on prompt-heavy requests (long prompt → 32 tokens: 3.9 s vs. 16.8 s on C2), but **C1 beats G1 on output-heavy requests** (203 → 256: 13.9 s vs. 17.3 s). G1 also batches far better than any other node (2.8× at 4 concurrent requests), and it dominates C2 on every text request at a similar price.
 
 **G2 dominates when idle.** It is 10–16× faster end-to-end on text, 47× faster than C2 on large images, and the cheapest per output token under load despite 3–4× the hourly price. So the question for the router is the one the option poses: **does a CPU node become useful under contention?** A CPU node helps only when G2's queue would make a request wait longer than the CPU node needs to serve it, which is about 3.5 s for a short chat on C1 and much longer for anything else. G2's throughput levels off at about 4 concurrent requests, and beyond that requests wait (8 concurrent: worst time to first token 3.3 s). The routing decision therefore depends on G2's current queue length and on the request's shape.
+
+## First live routing run: naive baselines on C1 + C2
+
+[baselines/baselines_20261122T030557Z/](baselines/baselines_20261122T030557Z/summary.md): the routing service with six naive policies, all replaying the **same** 30-request trace. The trace is Poisson at 0.2 req/s: 50% short chat, 25% long prompt, 25% long output, text only. One run per policy, so treat it as a working check rather than the evaluation. It used the pre-merge tooling (`loadgen.py`/`summarize.py`, commit `8aabfb7`); future runs use `live.py --router`.
+
+| policy | mean e2e s | p95 e2e s | p50 TTFT s | requests C1 / C2 |
+|---|---|---|---|---|
+| always-C1 | 18.9 | 35.8 | 7.7 | 30 / 0 |
+| always-C2 | 24.5 | 47.3 | 4.8 | 0 / 30 |
+| random | 13.2 | 29.7 | 2.5 | 11 / 19 |
+| round-robin | 11.2 | 24.5 | 1.8 | 15 / 15 |
+| least-outstanding (JSQ) | 11.2 | **22.5** | 2.1 | 16 / 14 |
+| first-idle | **11.1** | 25.1 | 2.0 | 16 / 14 |
+
+- Using both nodes cuts mean latency by 40–55% against either node alone, at a load either node alone cannot sustain.
+- The naive load-aware policies tie with round-robin here. None of them looks at request shape, which the simulator says is where most of the remaining gain is (SED/ECT-global vs. JSQ).
+- 180 requests, 0 failures. Router overhead: decisions in 1–5 µs, and 0.8 ms median (2.9 ms p99) added per request.
 
 ## The two CPU nodes
 

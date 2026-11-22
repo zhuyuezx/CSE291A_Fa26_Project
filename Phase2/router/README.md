@@ -1,6 +1,8 @@
 # Router: cost model, policies, simulator, live runs
 
-Everything here is standard-library Python (3.9+), so it runs unchanged on a laptop and on the router.
+Everything here is standard-library Python (3.9+), except `router.py`, which needs `aiohttp` (installed in `/opt/fleet/venv` on the router node).
+
+**Scope: text only.** The endpoints serve no vision projector (`setup_node.sh` `VISION=0`). Use a text-only mix in live runs: `B-decode-heavy` or `D-phase1-T1T2T3` (the default). `live.py` refuses image mixes unless `--images` is passed. Mixes A and C include images, so they need text-only versions before they can serve as the dev/held-out mixes live.
 
 | File | What it does |
 |---|---|

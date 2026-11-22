@@ -22,7 +22,7 @@ Everything is in **us-west-2 (Oregon)**, in the shared group account. Every endp
 | **R** (router) | `m7g.large` | Graviton3, 2 vCPU, 8 GiB | 2d | 172.31.60.152, Elastic IP **32.191.208.76** | ~0.08 | ready |
 | **C1** | `c7g.xlarge` | Graviton3 (Arm), 4 cores, 8 GiB | 2d | 172.31.61.18 | 0.145 | ready, tested |
 | **C2** | `c7i.xlarge` | Xeon Sapphire Rapids (x86, AMX), 2 cores × 2 threads, 8 GiB | 2b | 172.31.41.144 | 0.179 | ready, tested |
-| **G1** | `g6f.large` | 1/8 NVIDIA L4 (**3 GB** VRAM), 2 vCPU | 2d | 172.31.56.6 | ~0.20 | ready (text-only); tests pending until the fleet is free |
+| **G1** | `g6f.large` | 1/8 NVIDIA L4 (**3 GB** VRAM), 2 vCPU | 2d | 172.31.56.6 | ~0.20 | ready, tested (text-only) |
 | **G2** | `g4dn.xlarge` | NVIDIA T4 (16 GB), 4 vCPU | 2c | 172.31.11.54 | 0.526 | ready, tested |
 
 Running everything costs about **$1.15/h**. With all instances stopped, the disks and the Elastic IP still cost about **$0.55/day**. The group cap is **$20/day**.
@@ -64,23 +64,25 @@ curl -s http://172.31.61.18:8080/v1/chat/completions -H 'Content-Type: applicati
 
 On an endpoint, server settings are in `/opt/llm/server.env` (then `sudo systemctl restart llama-server`), logs come from `journalctl -u llama-server -f`, and hardware and software versions are in `/opt/llm/node_info.txt`.
 
-## Results so far (C1 vs. C2)
+## Results so far
 
 The full comparison is in [results/README.md](../results/README.md), and each node's report and raw logs are in `results/<node>/`.
 
-| | C1 (Arm, 4 cores) | C2 (x86 + AMX, 2 cores) |
-|---|---|---|
-| Prefill (reading the prompt) | 95 tok/s | **155 tok/s** |
-| Decode (generating) | **22.5 tok/s** | 10.3 tok/s |
-| 1024 px image, time to first token | 211 s | **31 s** |
+| | C1 (Arm, 4 cores) | C2 (x86 + AMX, 2 cores) | G1 (1/8 L4) | G2 (T4) |
+|---|---|---|---|---|
+| Prefill, 512-token prompt | 95 tok/s | 155 tok/s | 1,280 tok/s | **4,430 tok/s** |
+| Decode | 22.5 tok/s | 10.3 tok/s | 16.6 tok/s | **124.6 tok/s** |
+| Short chat (204 → 32), end-to-end | 3.5 s | 4.5 s | 2.4 s | **0.35 s** |
+| Long output (203 → 256) | 13.9 s | 26.1 s | 17.3 s | **2.26 s** |
+| Long prompt (2168 → 32) | 32.6 s | 16.8 s | 3.9 s | **0.80 s** |
+| Batching gain at 4 concurrent | 1.4× | 1.7× | **2.8×** | 1.9× |
 
-- **The faster machine depends on the request.** C2 wins when the prompt is more than about 6–11 times the output length; C1 wins otherwise, by about 2× in each direction. That's a device-level reason for the router to exist.
-- **Images strongly favour C2.** C1's vision encoder is very slow; the cause isn't diagnosed yet.
-- **Each CPU node saturates at about 4 simultaneous requests.** Running more together gives only 1.4–1.7× more throughput, so watching each node's queue matters.
-- **Cold start is about 15 s, set by the disk's read speed.** With the model already in memory it is 1.2–1.5 s.
-- **Network between nodes is about 2 ms per request**, even across zones. That is negligible next to inference time.
-
-The G1 and G2 results will be added the same way.
+- **G2 dominates when idle**, and it is also the cheapest per output token under load. The routing question is whether the other nodes help **under contention**.
+- **The other nodes differ by request shape.** C2 beats C1 when the prompt is more than about 6–11× the output length. G1 reads prompts 8–13× faster than the CPUs but generates at CPU speed, so C1 beats G1 on output-heavy requests. Images are out of scope (text only).
+- **CPU nodes saturate at about 4 simultaneous requests** (1.4–1.7× batching gain). G1 batches much better (2.8×).
+- **Cold start is about 14–18 s from disk, set by the disk's read speed**, and 1–2 s when the model is already in memory. **Network between nodes is about 2 ms per request.**
+- **First live router run (C1 + C2, naive policies):** using both nodes cuts mean latency by 40–55% against either node alone. Round-robin, JSQ and first-idle tie at about 11 s. The router adds 0.8 ms per request.
+- **Simulator (Phase2/router/):** shape-aware policies (SED, ECT-global) are 2–3× better than round-robin and JSQ.
 
 ## Code layout
 
@@ -95,18 +97,30 @@ Phase2/
     endpoints.json     the fleet: names, instance types, zones, private IPs
     ssh_config         SSH shortcuts (cse-router, cse-c1, ...)
   harness/
-    endpoint_test.py   request-level tests on one endpoint: length grid, concurrency, images (standard library only)
+    endpoint_test.py   request-level tests on one endpoint: length grid, concurrency, optional images (standard library only)
     run_node_tests.sh  full single-node suite: llama-bench, cold start, endpoint_test.py, memory
-results/               (repo root) measurements per node and the comparison README
+    interference_test.py  what a long prompt does to a sequence already decoding on the same node
+  router/              see router/README.md
+    fit_profiles.py    per-node cost profiles from results/<node>/server.jsonl -> profiles.json (C1 C2 G1 G2)
+    nodemodel.py       fluid model of one llama-server, used by the simulator and by ECT
+    policies.py        always-node, round-robin, random, JSQ, first-idle, best-idle, SED, ECT, ECT-global, ECT-oracle
+    router.py          the routing service: OpenAI-compatible proxy on the router node that runs any policy live
+    simulate.py        model validation, and the policy grid over mixes, arrivals, and loads
+    live.py            replays a trace on the real fleet, routing in-process or through router.py (--router)
+results/               (repo root) measurements per node, router baselines, and the comparison README
 ```
+
+**Running the router on the router node:** pull the repo into your own clone there. `router.py` needs `/opt/fleet/venv/bin/python` (for `aiohttp`); everything else runs with plain `python3`.
 
 ## Next steps (open for anyone to pick up)
 
-1. **Finish the GPU measurements.** G1 and G2 run automatically; then extend `results/README.md` to all four nodes and find each node's best configuration (e.g. C2 is 16–22% faster with 4 threads instead of 2).
-2. **Multi-endpoint load generator on the router.** Port Phase 1's `run_load.py` to send open-loop Poisson and bursty traffic across all endpoints, with a workload mix (short chat, long prompt, long output, images) and dev vs. held-out mixes.
-3. **Network and transfer cost (E3).** Router → endpoint latency versus payload size, including large prompts and images.
-4. **Router.** Baselines first: always-C1/C2/G1/G2, round-robin, least-outstanding-requests. Then the completion-time router: estimated time = queue wait + prompt/prefill rate + output/decode rate + network, using the measured profiles and live `/slots` state.
-5. **Evaluation.** Steady and bursty arrivals at several loads, the fastest node idle vs. busy, repeated runs with confidence intervals.
+Done: all four nodes measured and profiled; the routing service, policies (including ECT-global and SED), simulator, and live runner merged and verified end to end.
+
+1. **Text-only dev/held-out mixes.** Mixes A and C include images. Define text-only versions (e.g. A without `img`, renormalized) and decide which mix is dev and which are held out.
+2. **Best configuration per node.** For example, C2 is 16–22% faster with 4 threads instead of 2. Also re-measure C1's decode batching cleanly (`llama-batched-bench`); its fitted batch factors are not monotonic.
+3. **Four-node simulation.** Re-run `simulate.py grid` with G1 and G2. The main question: when G2 is busy, do C1, C2 and G1 still help?
+4. **Network and transfer cost (E3).** Router → endpoint latency versus payload size, for large prompts.
+5. **Evaluation on the live fleet** through `router.py`: steady and bursty arrivals at several loads, the fastest node idle vs. busy, held-out mixes, repeated runs with confidence intervals.
 6. **Report.**
 
 ## Known issues

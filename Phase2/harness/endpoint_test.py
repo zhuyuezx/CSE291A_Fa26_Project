@@ -36,8 +36,10 @@ def nonce():
     return uuid.uuid4().hex[:8]
 
 
-def chat(url, messages, max_tokens, ignore_eos=True, timeout=900):
-    """Send one streaming chat request and return its timing record."""
+def chat(url, messages, max_tokens, ignore_eos=True, timeout=900, headers=None):
+    """Send one streaming chat request and return its timing record.
+    `headers` are extra request headers (e.g. X-Task-Class for the router);
+    when the URL is the router, `routed_to` records the endpoint it chose."""
     u = urllib.parse.urlsplit(url)
     body = json.dumps({
         "messages": messages,
@@ -55,8 +57,9 @@ def chat(url, messages, max_tokens, ignore_eos=True, timeout=900):
     try:
         conn = http.client.HTTPConnection(u.hostname, u.port or 80, timeout=timeout)
         conn.request("POST", "/v1/chat/completions", body,
-                     {"Content-Type": "application/json"})
+                     {"Content-Type": "application/json", **(headers or {})})
         resp = conn.getresponse()
+        rec["routed_to"] = resp.getheader("X-Routed-To")
         if resp.status != 200:
             raise RuntimeError(f"HTTP {resp.status}: {resp.read()[:300]!r}")
         for raw in resp:

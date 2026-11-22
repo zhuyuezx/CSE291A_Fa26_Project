@@ -1,0 +1,7 @@
+endpoints=C1 C2
+rate=0.2
+n=30
+pattern=poisson
+mix=T1=0.5,T2=0.25,T3=0.25
+seed=0
+policies=always:C1 always:C2 random round_robin least_outstanding first_idle

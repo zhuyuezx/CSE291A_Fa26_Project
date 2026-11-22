@@ -108,6 +108,23 @@ class JSQ(Policy):
         return tied[self.turn % len(tied)]
 
 
+class FirstIdle(Policy):
+    """First node in list order with nothing outstanding; if none is idle,
+    JSQ. A naive baseline: list order acts as a fixed preference."""
+    name = "first-idle"
+
+    def __init__(self, profiles):
+        super().__init__(profiles)
+        self.jsq = JSQ(profiles)
+
+    def route(self, req, t):
+        for n in self.names:
+            if self.outstanding[n] == 0:
+                return n
+        self.jsq.outstanding = self.outstanding
+        return self.jsq.route(req, t)
+
+
 class BestIdle(Policy):
     name = "best-idle"
 
@@ -195,8 +212,8 @@ def build(name, profiles, real_nodes, seed=0):
     """A fresh policy by name; 'always-<node>' for the single-node baselines."""
     if name.startswith("always-"):
         return Always(profiles, name[len("always-"):])
-    cls = {"round-robin": RoundRobin, "JSQ": JSQ, "best-idle": BestIdle, "SED": SED,
-           "ECT": ECT, "ECT-global": ECTGlobal}
+    cls = {"round-robin": RoundRobin, "JSQ": JSQ, "first-idle": FirstIdle, "best-idle": BestIdle,
+           "SED": SED, "ECT": ECT, "ECT-global": ECTGlobal}
     if name == "random":
         return Random(profiles, seed)
     if name == "ECT-oracle":
