@@ -15,7 +15,9 @@ Request classes (output lengths are what the server actually generates):
   summ   ~2K-token document, one-sentence answer (T2; prefill-heavy)
   rag    0.5-1.2K-token context, medium answer
   img    bar-chart question at 256/512/1024 px, letter answer
-Mix A is the development mix; B, C, D are held out.
+The grid uses the text-only mixes (images are out of scope for Phase 2). Mix A
+is the development mix; B, C, D are held out. A-balanced, which includes
+images, is kept for the first live run (results/live_trial1.md).
 """
 
 import argparse
@@ -39,11 +41,13 @@ NET_S = 0.002  # measured C1 <-> C2 request overhead (results/README.md)
 SLO_X = 3.0    # deadline: 3x the request's latency on the best idle node
 
 MIXES = {
-    "A-balanced": {"gsm": .40, "story": .15, "summ": .20, "rag": .15, "img": .10},
+    "A-text": {"gsm": .45, "story": .15, "summ": .25, "rag": .15},
     "B-decode-heavy": {"gsm": .60, "story": .30, "summ": .05, "rag": .05},
-    "C-prefill-image-heavy": {"gsm": .15, "summ": .35, "rag": .25, "img": .25},
+    "C-prefill-heavy": {"gsm": .20, "summ": .45, "rag": .35},
     "D-phase1-T1T2T3": {"gsm": .50, "summ": .25, "story": .25},
+    "A-balanced": {"gsm": .40, "story": .15, "summ": .20, "rag": .15, "img": .10},
 }
+GRID_MIXES = ["A-text", "B-decode-heavy", "C-prefill-heavy", "D-phase1-T1T2T3"]
 IMG_PX = {256: .50, 512: .35, 1024: .15}
 
 
@@ -93,17 +97,18 @@ def trace(mix, n, rate, cv, seed, gsm, vision_tokens):
 
 
 def nominal_capacity(profiles, mix, gsm, vision_tokens, n=4000):
-    """Requests/s the fleet serves if each node runs one request at a time,
-    every request on its best node; a load of 1.0 means this rate. Batching lets
-    the real nodes go somewhat beyond it."""
+    """Requests/s the fleet serves if every node handles the whole mix one
+    request at a time: the sum of each node's own rate. A load of 1.0 means
+    this rate. Batching and shape-aware placement let a good router go beyond it."""
     rng = random.Random(123)
     nodes = [Node(k, v) for k, v in profiles.items()]
     classes, weights = list(MIXES[mix]), list(MIXES[mix].values())
-    work = 0.0
+    work = {nd.name: 0.0 for nd in nodes}
     for _ in range(n):
         r = make_request(rng.choices(classes, weights=weights)[0], rng, gsm, vision_tokens)
-        work += min(nd.service_s(r["prompt"], r["px"], r["out"]) for nd in nodes)
-    return len(nodes) / (work / n)
+        for nd in nodes:
+            work[nd.name] += nd.service_s(r["prompt"], r["px"], r["out"])
+    return sum(n / w for w in work.values())
 
 
 def run(policy_name, profiles, reqs, seed=0):
@@ -229,16 +234,17 @@ def grid(profiles, args):
     vtok = {int(k): v["tokens"] for k, v in next(iter(profiles.values()))["vision"].items()}
     policies = [f"always-{k}" for k in profiles] + POLICIES
     cells = [(mix, cv, load, seed, args.n, profiles, gsm, vtok, policies)
-             for mix in MIXES for cv in args.cv for load in args.loads for seed in range(args.seeds)]
+             for mix in GRID_MIXES for cv in args.cv for load in args.loads for seed in range(args.seeds)]
     t0 = time.time()
     with Pool(args.jobs) as pool:
         res = [r for cell in pool.imap_unordered(grid_cell, cells) for r in cell]
     print(f"{len(cells)} cells x {len(policies)} policies in {time.time() - t0:.0f} s", file=sys.stderr)
 
     OUT_DIR.mkdir(exist_ok=True)
+    tag = "-".join(profiles)
     keys = ["mix", "arrivals", "load", "rate_per_min", "seed", "policy", "mean_e2e", "p50_e2e",
             "p95_e2e", "p99_e2e", "p95_ttft", "slo_attain", "mean_slowdown", "share", "route_us"]
-    with open(OUT_DIR / "sim_runs.csv", "w", newline="") as f:
+    with open(OUT_DIR / f"sim_runs_{tag}.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=keys)
         w.writeheader()
         for r in sorted(res, key=lambda r: (r["mix"], r["arrivals"], r["load"], r["seed"], r["policy"])):
@@ -249,7 +255,7 @@ def grid(profiles, args):
     for r in res:
         agg.setdefault((r["mix"], r["arrivals"], r["load"], r["policy"]), []).append(r)
     lines = []
-    for mix in MIXES:
+    for mix in GRID_MIXES:
         for arr in sorted({r["arrivals"] for r in res}, reverse=True):
             for load in args.loads:
                 rate = statistics.mean(r["rate_per_min"] for r in agg[(mix, arr, load, policies[0])])
@@ -261,10 +267,10 @@ def grid(profiles, args):
                     m = lambda k: statistics.mean(x[k] for x in g)
                     lines.append(f"| {p} | {m('mean_e2e'):.1f} | {m('p95_e2e'):.1f} | {m('p99_e2e'):.1f} | "
                                  f"{m('p95_ttft'):.1f} | {100 * m('slo_attain'):.0f}% | {g[0]['share']} |")
-    (OUT_DIR / "sim_summary.md").write_text(
-        f"# Simulated routing, {args.seeds} seeds x {args.n} requests per cell "
+    (OUT_DIR / f"sim_summary_{tag}.md").write_text(
+        f"# Simulated routing on {', '.join(profiles)}, {args.seeds} seeds x {args.n} requests per cell "
         f"(first 10% dropped), SLO = {SLO_X:g}x best idle latency\n" + "\n".join(lines) + "\n")
-    print(f"wrote {OUT_DIR / 'sim_runs.csv'} and sim_summary.md", file=sys.stderr)
+    print(f"wrote {OUT_DIR}/sim_runs_{tag}.csv and sim_summary_{tag}.md", file=sys.stderr)
 
 
 def main():
@@ -276,8 +282,11 @@ def main():
     ap.add_argument("--loads", nargs="+", type=float, default=[0.25, 0.5, 0.75, 1.0])
     ap.add_argument("--cv", nargs="+", type=float, default=[1, 3])
     ap.add_argument("--jobs", type=int, default=8)
+    ap.add_argument("--nodes", nargs="+", help="subset of profiles.json (default: all)")
     args = ap.parse_args()
     profiles = load_profiles(args.profiles)
+    if args.nodes:
+        profiles = {k: profiles[k] for k in args.nodes}
     if args.mode == "validate":
         validate(profiles)
     else:
