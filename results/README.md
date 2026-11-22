@@ -1,6 +1,28 @@
 # Phase 2 endpoint measurements
 
-Each node was tested on itself with `Phase2/harness/run_node_tests.sh`, sending requests to `localhost`, so network cost is excluded. Every node serves the same file, **Qwen3.5-2B Q4_K_M** (SHA-256 `aaf42c8b…`), with llama.cpp `b12617`, thinking off, 4 server slots, and a 16K shared context. Full reports and raw logs are in each node's folder: [C1](C1/report.md), [C2](C2/report.md). G1 and G2 will be added when they are set up.
+Each node was tested on itself with `Phase2/harness/run_node_tests.sh`, sending requests to `localhost`, so network cost is excluded. Every node serves the same file, **Qwen3.5-2B Q4_K_M** (SHA-256 `aaf42c8b…`), with llama.cpp `b12617`, thinking off, 4 server slots, and a 16K shared context. Full reports and raw logs are in each node's folder: [C1](C1/report.md), [C2](C2/report.md), [G2](G2/report.md). G1 will be added once its tests run.
+
+**Scope note: text only.** Image requests are out of scope for now, and endpoints are being moved to text-only serving. The image rows below come from the first test runs, when the vision projector was loaded. G1 (1/8 L4, 3 GB) cannot serve images at all: the 2B model (1.27 GB) plus the F16 vision projector (0.67 GB) plus CUDA overhead leave less than the 223 MiB the vision encoder needs, so it runs out of memory at any context size we tried.
+
+## All nodes at a glance
+
+| | C1 `c7g.xlarge` | C2 `c7i.xlarge` | G2 `g4dn.xlarge` |
+|---|---|---|---|
+| Hardware | Graviton3, 4 cores | Sapphire Rapids, 2 cores × 2 threads, AMX | NVIDIA T4, 16 GB |
+| Price | $0.145/h | $0.179/h | $0.526/h |
+| Prefill, 512-token prompt (llama-bench) | 95 tok/s | 155 tok/s | **4,430 tok/s** |
+| Decode (llama-bench) | 22.5 tok/s | 10.3 tok/s | **124.6 tok/s** |
+| Short chat, 204 → 32 tokens, end-to-end | 3.5 s | 4.5 s | **0.35 s** |
+| Long output, 203 → 256 tokens | 13.9 s | 26.1 s | **2.26 s** |
+| Long prompt, 2168 → 256 tokens | 44.1 s | 39.6 s | **2.75 s** |
+| 1024 px image, time to first token | 211 s | 30.8 s | **0.66 s** |
+| Throughput at 4 concurrent requests | 14.8 output tok/s | 13.6 | **194** |
+| Batching gain, 1 → 4 concurrent | 1.4× | 1.7× | 1.9× |
+| Output tokens per dollar, 4 concurrent | 0.37 M | 0.27 M | **1.33 M** |
+| Cold start: model on disk / in page cache | 14.9 s / 1.2 s | 14.9 s / 1.5 s | 18.0 s / 1.9 s |
+| Failures | 0 of 57 | 0 of 57 | 0 of 57 |
+
+**G2 dominates when idle.** It is 10–16× faster end-to-end on text, 47× faster than C2 on large images, and the cheapest per output token under load despite 3–4× the hourly price. So the question for the router is the one the option poses: **does a CPU node become useful under contention?** A CPU node helps only when G2's queue would make a request wait longer than the CPU node needs to serve it, which is about 3.5 s for a short chat on C1 and much longer for anything else. G2's throughput levels off at about 4 concurrent requests, and beyond that requests wait (8 concurrent: worst time to first token 3.3 s). The routing decision therefore depends on G2's current queue length and on the request's shape.
 
 ## The two CPU nodes
 

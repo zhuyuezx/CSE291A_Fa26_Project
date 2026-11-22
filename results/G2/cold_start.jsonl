@@ -1,0 +1,6 @@
+{"kind":"cold_start","mode":"disk","rep":1,"start_to_health_s":18.204,"first_request_s":0.126103}
+{"kind":"cold_start","mode":"disk","rep":2,"start_to_health_s":17.737,"first_request_s":0.129915}
+{"kind":"cold_start","mode":"disk","rep":3,"start_to_health_s":17.721,"first_request_s":0.123252}
+{"kind":"cold_start","mode":"page_cache","rep":1,"start_to_health_s":1.903,"first_request_s":0.083591}
+{"kind":"cold_start","mode":"page_cache","rep":2,"start_to_health_s":1.906,"first_request_s":0.083405}
+{"kind":"cold_start","mode":"page_cache","rep":3,"start_to_health_s":1.913,"first_request_s":0.083126}

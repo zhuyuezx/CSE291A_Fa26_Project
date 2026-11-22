@@ -11,6 +11,7 @@ So Phase 2 is organized like this:
 - **Core study:** the *same* model on every machine (Qwen3.5-2B, Q4_K_M, one identical GGUF file). The router decides **which machine** runs each request, using measured per-machine profiles and each machine's current queue. It is compared against always-one-machine, round-robin, and a simple load-aware baseline, as Option 3 requires.
 - **Optional extension:** choosing a different model per request (the Phase 1 GSM8K tier work), reported separately with answer quality.
 - **AWS only.** The laptops are dropped.
+- **Text only, for now.** Image requests are out of scope. Endpoints are set up without the vision projector (`VISION=0`, the default in `setup_node.sh`). G1's 3 GB GPU cannot hold the 2B model plus the projector anyway: it runs out of memory reserving the vision encoder's buffers. The early C1, C2, and G2 tests included images; their text results are unaffected.
 
 ## The fleet
 
@@ -21,8 +22,8 @@ Everything is in **us-west-2 (Oregon)**, in the shared group account. Every endp
 | **R** (router) | `m7g.large` | Graviton3, 2 vCPU, 8 GiB | 2d | 172.31.60.152, Elastic IP **32.191.208.76** | ~0.08 | ready |
 | **C1** | `c7g.xlarge` | Graviton3 (Arm), 4 cores, 8 GiB | 2d | 172.31.61.18 | 0.145 | ready, tested |
 | **C2** | `c7i.xlarge` | Xeon Sapphire Rapids (x86, AMX), 2 cores × 2 threads, 8 GiB | 2b | 172.31.41.144 | 0.179 | ready, tested |
-| **G1** | `g6f.large` | 1/8 NVIDIA L4 (**3 GB** VRAM), 2 vCPU | 2d | 172.31.56.6 | ~0.20 | building llama.cpp, then tests run automatically |
-| **G2** | `g4dn.xlarge` | NVIDIA T4 (16 GB), 4 vCPU | 2c | 172.31.11.54 | 0.526 | building llama.cpp, then tests run automatically |
+| **G1** | `g6f.large` | 1/8 NVIDIA L4 (**3 GB** VRAM), 2 vCPU | 2d | 172.31.56.6 | ~0.20 | ready (text-only); tests pending until the fleet is free |
+| **G2** | `g4dn.xlarge` | NVIDIA T4 (16 GB), 4 vCPU | 2c | 172.31.11.54 | 0.526 | ready, tested |
 
 Running everything costs about **$1.15/h**. With all instances stopped, the disks and the Elastic IP still cost about **$0.55/day**. The group cap is **$20/day**.
 

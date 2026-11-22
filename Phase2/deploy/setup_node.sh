@@ -2,7 +2,7 @@
 # Turn a fresh Ubuntu (24.04 or 26.04) EC2 instance into an inference endpoint:
 #   1. build llama.cpp at a pinned tag (native CPU kernels, or CUDA if an
 #      NVIDIA GPU with a working driver is visible),
-#   2. download SHA-256-checked Qwen3.5 GGUF files (text model + vision mmproj),
+#   2. download SHA-256-checked Qwen3.5 GGUF files,
 #   3. run llama-server as a systemd service on port 8080,
 #   4. record the node's hardware and software in /opt/llm/node_info.txt.
 #
@@ -13,7 +13,7 @@
 # Server settings live in /opt/llm/server.env; edit it, then
 # `sudo systemctl restart llama-server`.
 #
-# Overrides (environment): LLAMA_TAG, SERVE, DOWNLOAD, PORT, PARALLEL, CTX.
+# Overrides (environment): LLAMA_TAG, SERVE, DOWNLOAD, PORT, PARALLEL, CTX, VISION.
 set -euo pipefail
 
 LLAMA_TAG="${LLAMA_TAG:-b12617}"              # must be identical on every node
@@ -22,6 +22,9 @@ DOWNLOAD="${DOWNLOAD:-qwen3.5-0.8b qwen3.5-2b}"  # models staged on disk
 PORT="${PORT:-8080}"
 PARALLEL="${PARALLEL:-4}"   # server slots = requests decoded concurrently
 CTX="${CTX:-16384}"         # total KV context, shared by all slots (unified KV)
+# 1 = also download and load the vision projector (image input). Text-only by
+# default: images are out of scope for now, and 2B + projector does not fit G1's 3 GB GPU.
+VISION="${VISION:-0}"
 ROOT=/opt/llm
 SRC=$ROOT/llama.cpp
 
@@ -112,15 +115,18 @@ echo "== models"
 for m in $DOWNLOAD $SERVE; do
   model_vars "$m"
   fetch "$REPO" "$GGUF" "$GSHA" "$MDIR"
-  fetch "$REPO" mmproj-F16.gguf "$MSHA" "$MDIR"
+  if [ "$VISION" = 1 ]; then fetch "$REPO" mmproj-F16.gguf "$MSHA" "$MDIR"; fi
 done
 model_vars "$SERVE"
+MMPROJ=""
+if [ "$VISION" = 1 ]; then MMPROJ="$MDIR/mmproj-F16.gguf"; fi
 
 echo "== service"
 cat > $ROOT/server.env <<EOF
 # Read by $ROOT/run-server.sh. Edit, then: sudo systemctl restart llama-server
 MODEL_PATH=$MDIR/$GGUF
-MMPROJ_PATH=$MDIR/mmproj-F16.gguf
+# Empty = text-only; set to an mmproj file to accept images.
+MMPROJ_PATH=$MMPROJ
 PORT=$PORT
 THREADS=$CORES
 NGL=$NGL
@@ -136,8 +142,10 @@ cat > $ROOT/run-server.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 source /opt/llm/server.env
+VISION_ARGS=()
+if [ -n "${MMPROJ_PATH:-}" ]; then VISION_ARGS=(--mmproj "$MMPROJ_PATH"); fi
 exec /opt/llm/llama.cpp/build/bin/llama-server \
-  -m "$MODEL_PATH" --mmproj "$MMPROJ_PATH" \
+  -m "$MODEL_PATH" "${VISION_ARGS[@]}" \
   --host 0.0.0.0 --port "$PORT" \
   -t "$THREADS" -ngl "$NGL" -np "$PARALLEL" -c "$CTX" --kv-unified \
   --cache-ram 0 --metrics \
@@ -187,7 +195,8 @@ echo "== node info"
   echo "llama_commit=$(git -C "$SRC" rev-parse --short HEAD)"
   echo "serve_model=$GGUF"
   echo "serve_model_sha256=$GSHA"
-  echo "mmproj_sha256=$MSHA"
+  echo "vision=$VISION"
+  if [ "$VISION" = 1 ]; then echo "mmproj_sha256=$MSHA"; fi
   echo "setup_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } | tee $ROOT/node_info.txt
 

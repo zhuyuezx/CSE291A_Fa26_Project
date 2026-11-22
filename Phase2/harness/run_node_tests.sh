@@ -61,8 +61,10 @@ for mode in disk page_cache; do
 done
 
 echo "== 3. request-level tests"
+IMAGES=()
+if [ -n "${MMPROJ_PATH:-}" ]; then IMAGES=(--image-sizes 256 512 1024); fi  # only if the server takes images
 python3 "$HERE/endpoint_test.py" --url "http://localhost:$PORT" --name "$NAME" \
-  --data-dir ~/data --out "$OUT/server.jsonl" --summary "$OUT/server.md"
+  --data-dir ~/data --out "$OUT/server.jsonl" --summary "$OUT/server.md" "${IMAGES[@]}"
 
 echo "== 4. memory"
 PID=$(systemctl show -p MainPID --value llama-server)
@@ -96,7 +98,7 @@ echo "== report"
     cat "$OUT/bench_threads_2b.md"
   fi
   echo
-  echo '## Cold start (Qwen3.5-2B + vision projector)'
+  echo "## Cold start ($(basename "$MODEL_PATH")$([ -n "${MMPROJ_PATH:-}" ] && echo ' + vision projector'))"
   echo
   echo '`disk`: page cache dropped first, so the model is read from EBS. `page_cache`: files already in memory.'
   echo '`start_to_health_s`: systemctl start until /health answers. `first_request_s`: a 1-token request right after.'

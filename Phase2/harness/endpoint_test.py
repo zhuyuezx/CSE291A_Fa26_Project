@@ -3,7 +3,8 @@
 
   single      one request at a time over a prompt-length x output-length grid
   concurrent  N simultaneous requests (prompt 512, output 128), N = 1, 2, 4, 8
-  image       one bar-chart image at 256/512/1024 px, with a known answer
+  image       one bar-chart image per --image-sizes value (off by default; needs a
+              server started with a vision projector)
 
 TTFT and end-to-end latency are measured on the client. Prefill and decode
 token counts and durations come from the server's `timings` field. Every
@@ -223,7 +224,8 @@ def main():
     ap.add_argument("--conc-reps", type=int, default=2)
     ap.add_argument("--conc-prompt", type=int, default=512)
     ap.add_argument("--conc-output", type=int, default=128)
-    ap.add_argument("--image-sizes", nargs="+", type=int, default=[256, 512, 1024])
+    ap.add_argument("--image-sizes", nargs="*", type=int, default=[],
+                    help="e.g. 256 512 1024; empty (default) skips image tests")
     args = ap.parse_args()
 
     data = Path(args.data_dir).expanduser()
